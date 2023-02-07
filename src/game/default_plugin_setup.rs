@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use super::camera::PIXEL_SCALE;
+
 pub struct DefaultPluginSetup;
 
 impl Plugin for DefaultPluginSetup {
@@ -8,8 +10,8 @@ impl Plugin for DefaultPluginSetup {
             DefaultPlugins
                 .set(WindowPlugin {
                     window: WindowDescriptor {
-                        width: 128.0 * 8.0,
-                        height: 128.0 * 8.0,
+                        width: 128.0 * PIXEL_SCALE,
+                        height: 128.0 * PIXEL_SCALE,
                         title: "Sigil".to_string(),
                         resizable: false,
                         ..default()
