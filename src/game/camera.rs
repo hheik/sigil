@@ -4,12 +4,24 @@ use bevy_ecs_ldtk::prelude::*;
 
 pub struct GameCameraPlugin;
 
+#[derive(StageLabel)]
+pub enum CameraStages {
+    /// Camera movement stage. Should run just before CoreStage::PostUpdate.
+    CameraUpdate,
+}
+
 impl Plugin for GameCameraPlugin {
     fn build(&self, app: &mut App) {
+        app.add_stage_before(
+            CoreStage::PostUpdate,
+            CameraStages::CameraUpdate,
+            SystemStage::parallel(),
+        );
+
         app.register_type::<CameraFollow>()
             .register_type::<GameCamera>()
             .add_startup_system(camera_setup)
-            .add_system_to_stage(CoreStage::PostUpdate, camera_follow);
+            .add_system_to_stage(CameraStages::CameraUpdate, camera_follow);
     }
 }
 
@@ -38,24 +50,24 @@ pub struct CameraFollow {
 }
 
 impl CameraFollow {
-    pub fn instant() -> Self {
+    pub fn instant(priority: i32) -> Self {
         Self {
+            priority,
             movement: FollowMovement::Instant,
-            ..default()
         }
     }
 
-    pub fn linear(speed: f32) -> Self {
+    pub fn linear(priority: i32, speed: f32) -> Self {
         Self {
+            priority,
             movement: FollowMovement::Linear(speed),
-            ..default()
         }
     }
 
-    pub fn smooth(lerp: f32) -> Self {
+    pub fn smooth(priority: i32, lerp: f32) -> Self {
         Self {
+            priority,
             movement: FollowMovement::Smooth(lerp),
-            ..default()
         }
     }
 }
@@ -84,8 +96,8 @@ fn camera_setup(mut commands: Commands) {
 
 fn camera_follow(
     mut camera_query: Query<(&mut Transform, &OrthographicProjection), With<Camera2d>>,
-    follow_query: Query<(&Transform, &CameraFollow), Without<Camera2d>>,
-    level_query: Query<(&Transform, &Handle<LdtkLevel>), Without<OrthographicProjection>>,
+    follow_query: Query<(&GlobalTransform, &CameraFollow), Without<Camera2d>>,
+    level_query: Query<(&GlobalTransform, &Handle<LdtkLevel>), Without<OrthographicProjection>>,
     time: Res<Time>,
     level_selection: Res<LevelSelection>,
     ldtk_levels: Res<Assets<LdtkLevel>>,
@@ -102,7 +114,7 @@ fn camera_follow(
     if let Some((target, follow)) = followed {
         let target = Vec3 {
             z: 999.9,
-            ..target.translation
+            ..target.translation()
         };
 
         for (mut camera_transform, _) in camera_query.iter_mut() {
@@ -135,10 +147,10 @@ fn camera_follow(
             if let Some(ldtk_level) = ldtk_levels.get(level_handle) {
                 let level = &ldtk_level.level;
                 if level_selection.is_match(&0, level) {
-                    let top_limit = level_transform.translation.y + level.px_hei as f32;
-                    let bottom_limit = level_transform.translation.y;
-                    let left_limit = level_transform.translation.x;
-                    let right_limit = level_transform.translation.x + level.px_wid as f32;
+                    let top_limit = level_transform.translation().y + level.px_hei as f32;
+                    let bottom_limit = level_transform.translation().y;
+                    let left_limit = level_transform.translation().x;
+                    let right_limit = level_transform.translation().x + level.px_wid as f32;
 
                     // vertical boundaries
                     camera_transform.translation.y += (bottom_limit
