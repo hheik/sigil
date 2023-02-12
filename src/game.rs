@@ -38,7 +38,7 @@ pub fn init() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn(LdtkWorldBundle {
-        ldtk_handle: assets.load("levels/test.ldtk"),
+        ldtk_handle: assets.load("levels/world.ldtk"),
         ..default()
     });
 }
