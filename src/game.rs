@@ -46,26 +46,37 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 fn pickup_setup(
     mut commands: Commands,
     mut events: EventReader<EntityInstanceAdded>,
-    assets: Res<AssetServer>,
-    mut atlases: ResMut<Assets<TextureAtlas>>,
+    ldtk_enum: Res<LdtkEnum>,
 ) {
-    for event in events.iter().filter(|e| e.instance.identifier == "MONEY") {
+    for event in events
+        .iter()
+        .filter(|e| e.instance.identifier == "ITEM_PICKUP")
+    {
         commands.entity(event.entity).with_children(|builder| {
-            let atlas = TextureAtlas::from_grid(
-                assets.load("sprites/items.png"),
-                Vec2::splat(8.0),
-                1,
-                1,
-                Some(Vec2::splat(0.0)),
-                Some(Vec2::splat(0.0)),
-            );
-            let atlas_handle = atlases.add(atlas);
+            for field in event.instance.field_instances.iter() {
+                match field.identifier.as_str() {
+                    "ITEM_ID" => {
+                        if let Some(id) = match &field.value {
+                            FieldValue::Enum(value) => value,
+                            _ => &None,
+                        } {
+                            let value_def = ldtk_enum.items.get(id).unwrap();
 
-            builder.spawn(SpriteSheetBundle {
-                texture_atlas: atlas_handle,
-                sprite: TextureAtlasSprite::new(0),
-                ..default()
-            });
+                            builder.spawn((
+                                SpriteSheetBundle {
+                                    texture_atlas: ldtk_enum.item_atlas.clone(),
+                                    sprite: TextureAtlasSprite::new(
+                                        value_def.tile_id.unwrap() as usize
+                                    ),
+                                    ..default()
+                                },
+                                Name::new(id.clone()),
+                            ));
+                        }
+                    }
+                    _ => (),
+                }
+            }
         });
     }
 }

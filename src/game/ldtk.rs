@@ -1,6 +1,7 @@
 use bevy::ecs::prelude::*;
 use bevy::prelude::*;
 use bevy::utils::HashMap;
+use bevy_ecs_ldtk::ldtk::EnumValueDefinition;
 use bevy_ecs_ldtk::*;
 
 pub struct LdtkHelpers;
@@ -9,8 +10,13 @@ impl Plugin for LdtkHelpers {
     fn build(&self, app: &mut App) {
         app.add_event::<EntityInstanceAdded>()
             .insert_resource(WordlyInstances::default())
+            .insert_resource(LdtkEnum::default())
             .add_system_to_stage(CoreStage::PreUpdate, entity_instance_events)
             .add_system_to_stage(CoreStage::PostUpdate, entity_namer)
+            .add_system_to_stage(
+                CoreStage::PreUpdate,
+                map_enum_defs.after(LdtkSystemLabel::LevelSpawning),
+            )
             .add_system_to_stage(CoreStage::PostUpdate, unique_handler);
     }
 }
@@ -70,5 +76,62 @@ fn unique_handler(
         worldly_instances
             .def_uid_map
             .insert(instance.def_uid, entity);
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct LdtkEnum {
+    pub items: HashMap<String, EnumValueDefinition>,
+    pub item_atlas: Handle<TextureAtlas>,
+}
+
+fn map_enum_defs(
+    ldtk_assets: Res<Assets<LdtkAsset>>,
+    mut ldtk_events: EventReader<AssetEvent<LdtkAsset>>,
+    mut ldtk_enum: ResMut<LdtkEnum>,
+    assets: Res<AssetServer>,
+    mut atlases: ResMut<Assets<TextureAtlas>>,
+) {
+    for event in ldtk_events.iter() {
+        match event {
+            AssetEvent::Created { handle } => {
+                if let Some(ldtk_asset) = ldtk_assets.get(handle) {
+                    if let Some(enum_def) = ldtk_asset
+                        .project
+                        .defs
+                        .enums
+                        .iter()
+                        .find(|enum_def| enum_def.identifier == "ITEM_ID")
+                    {
+                        if let Some(tileset) =
+                            ldtk_asset.project.defs.tilesets.iter().find(|tileset| {
+                                enum_def
+                                    .icon_tileset_uid
+                                    .map_or(false, |uid| uid == tileset.uid)
+                            })
+                        {
+                            if let Some(rel_path) = tileset.rel_path.clone() {
+                                let atlas = TextureAtlas::from_grid(
+                                    assets.load(format!("levels/{rel_path}")),
+                                    Vec2::splat(tileset.tile_grid_size as f32),
+                                    tileset.c_wid as usize,
+                                    tileset.c_hei as usize,
+                                    Some(Vec2::splat(tileset.spacing as f32)),
+                                    Some(Vec2::splat(0.0)),
+                                );
+                                ldtk_enum.item_atlas = atlases.add(atlas);
+                            }
+
+                            for enum_value in enum_def.values.iter() {
+                                ldtk_enum
+                                    .items
+                                    .insert(enum_value.id.clone(), enum_value.clone());
+                            }
+                        }
+                    }
+                }
+            }
+            _ => (),
+        };
     }
 }

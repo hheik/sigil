@@ -37,11 +37,11 @@ fn player_spawner(
             .insert(Worldly::default())
             .with_children(|builder| {
                 let atlas = TextureAtlas::from_grid(
-                    assets.load("sprites/player.png"),
+                    assets.load("sprites/export/player.png"),
                     Vec2::splat(8.0),
                     3,
                     1,
-                    Some(Vec2::splat(0.0)),
+                    Some(Vec2::splat(2.0)),
                     Some(Vec2::splat(0.0)),
                 );
                 let atlas_handle = atlases.add(atlas);

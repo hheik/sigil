@@ -1,0 +1,20 @@
+#!/bin/bash
+# This script will trim away 1 pixel border from given image.
+# Required since bevy_ecs_ldtk or bevy_ecs_tilemap doesn't understand padding in spritesheet.
+
+set -euo pipefail
+
+die() {
+    echo "$@" 1>&2
+    exit 1
+}
+
+sprite_dir="$(dirname "$0")/assets/sprites"
+
+while read -r path; do
+    base_dir="$(dirname "$path")"
+    filename="$(basename "$path")"
+    output="$base_dir/export/${filename}"
+    convert "$path" -shave 1x1 "$output"
+    echo "$output"
+done < <(find "$sprite_dir" -maxdepth 1 -type f -name '*.png')
