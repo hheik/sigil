@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
+use bevy_rapier2d::prelude::*;
 
-use super::{camera::CameraFollow, ldtk::EntityInstanceAdded};
+use crate::game::{camera::CameraFollow, ldtk::EntityInstanceAdded};
 
 pub struct PlayerPlugin;
 
@@ -46,15 +47,27 @@ fn player_spawner(
                 );
                 let atlas_handle = atlases.add(atlas);
 
-                builder.spawn(PlayerBundle {
-                    camera_follow: CameraFollow::instant(0),
-                    sprite_sheet: SpriteSheetBundle {
-                        texture_atlas: atlas_handle.clone(),
-                        sprite: TextureAtlasSprite::new(0),
-                        ..default()
-                    },
-                    ..default()
-                });
+                builder
+                    .spawn((
+                        PlayerBundle {
+                            camera_follow: CameraFollow::instant(0),
+                            sprite_sheet: SpriteSheetBundle {
+                                texture_atlas: atlas_handle.clone(),
+                                sprite: TextureAtlasSprite::new(0),
+                                ..default()
+                            },
+                            ..default()
+                        },
+                        RigidBody::KinematicPositionBased,
+                        ActiveEvents::COLLISION_EVENTS,
+                        ActiveCollisionTypes::all(),
+                    ))
+                    .with_children(|player| {
+                        player.spawn((
+                            TransformBundle::from_transform(Transform::from_xyz(0.0, -1.0, 0.0)),
+                            Collider::cuboid(3.0, 3.0),
+                        ));
+                    });
             });
     }
 }
@@ -76,12 +89,11 @@ pub fn update_level_selection(
                     ),
                 };
 
-                // TODO: Check if it's the current level
                 if player_transform.translation().x < level_bounds.max.x
                     && player_transform.translation().x > level_bounds.min.x
                     && player_transform.translation().y < level_bounds.max.y
                     && player_transform.translation().y > level_bounds.min.y
-                // && !level_selection.is_match(&0, &ldtk_level.level)
+                    && !level_selection.is_match(&0, &ldtk_level.level)
                 {
                     *level_selection = LevelSelection::Iid(ldtk_level.level.iid.clone());
                 }

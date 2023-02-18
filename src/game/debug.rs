@@ -6,6 +6,7 @@ pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(bevy_inspector_egui::quick::WorldInspectorPlugin)
+            .add_plugin(bevy_rapier2d::prelude::RapierDebugRenderPlugin::default())
             .add_system(room_debug);
     }
 }
