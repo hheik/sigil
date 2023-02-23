@@ -6,9 +6,9 @@ use bevy_ecs_ldtk::{prelude::*, LdtkSystemLabel};
 use bevy_rapier2d::prelude::*;
 use std::collections::HashSet;
 
-pub struct LdtkHelpers;
+pub struct LdtkHelperPlugin;
 
-impl Plugin for LdtkHelpers {
+impl Plugin for LdtkHelperPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<EntityInstanceAdded>()
             .register_ldtk_int_cell::<WallBundle>(1)
