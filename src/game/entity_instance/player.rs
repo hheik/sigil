@@ -263,62 +263,26 @@ pub fn player_movement(
             translation += phys_move.effective_translation.extend(0.0);
             kinematic_state.on_ground = phys_move.grounded;
 
-            if let Some(vel) = remaining_velocity.try_normalize() {
-                let new_remaining = remaining_velocity
-                    - phys_move.effective_translation.project_onto_normalized(vel);
-                if vel.dot(new_remaining) < 0.0 {
-                    remaining_velocity = Vec2::ZERO;
-                } else {
-                    remaining_velocity = new_remaining;
+            // If on ground there might be some autostep/slope/snap variance so project first.
+            // Otherwise, just substract effective translation from remaining velocity.
+            if phys_move.grounded {
+                if let Some(vel) = remaining_velocity.try_normalize() {
+                    let new_remaining = remaining_velocity
+                        - phys_move.effective_translation.project_onto_normalized(vel);
+                    if vel.dot(new_remaining) < 0.0 {
+                        remaining_velocity = Vec2::ZERO;
+                    } else {
+                        remaining_velocity = new_remaining;
+                    }
                 }
-            }
-
-            {
-                // DEBUG
-                let colors = vec![
-                    Color::RED,
-                    Color::BLUE,
-                    Color::GREEN,
-                    Color::CYAN,
-                    Color::FUCHSIA,
-                    Color::YELLOW,
-                ];
-                draw_shape(
-                    &mut debug_draw,
-                    shape,
-                    translation.truncate(),
-                    rotation.to_euler(EulerRot::ZYX).0,
-                    0.0,
-                    colors[_i as usize % colors.len()],
-                );
-                let from_color = if _i == 0 {
-                    Color::WHITE
-                } else {
-                    colors[(_i as usize - 1) % colors.len()]
-                };
-                debug_draw.line_gradient(
-                    translation - phys_move.effective_translation.extend(0.0),
-                    translation,
-                    0.0,
-                    from_color,
-                    colors[_i as usize % colors.len()],
-                )
+            } else {
+                remaining_velocity -= phys_move.effective_translation;
             }
 
             for coll in colls.iter() {
                 match coll.toi.status {
                     TOIStatus::Converged => {
-                        remaining_velocity = remaining_velocity.reject_from(
-                            coll.toi.normal1.project_onto_normalized(
-                                Vec2::from_angle(PI / 2.0).rotate(GRAVITY_DIR),
-                            ),
-                        );
-                        debug_draw.line_colored(
-                            coll.toi.witness1.extend(0.0),
-                            (coll.toi.witness1 + coll.toi.normal1 * 2.0).extend(0.0),
-                            0.0,
-                            Color::CYAN,
-                        );
+                        remaining_velocity = remaining_velocity.reject_from(coll.toi.normal1);
                     }
                     TOIStatus::Penetrating => {
                         remaining_velocity = remaining_velocity.reject_from(coll.toi.normal1);
