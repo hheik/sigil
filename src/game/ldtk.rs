@@ -61,7 +61,6 @@ fn entity_instance_events(
             .get(&instance.def_uid)
             .map_or(true, |ent| commands.get_entity(*ent).is_none())
         {
-            println!("Spawned {}", instance.identifier); // DEBUG
             events.send(EntityInstanceAdded {
                 entity,
                 instance: instance.clone(),
