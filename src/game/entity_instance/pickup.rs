@@ -35,6 +35,7 @@ pub fn pickup_setup(
                                 ActiveEvents::COLLISION_EVENTS,
                                 ActiveCollisionTypes::KINEMATIC_STATIC,
                                 Collider::cuboid(3.5, 3.5),
+                                Sensor,
                             ));
                         }
                     }

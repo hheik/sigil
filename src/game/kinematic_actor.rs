@@ -257,7 +257,7 @@ pub fn kinematic_movement(
             ..MoveShapeOptions::default()
         };
 
-        let mut move_filter = QueryFilter::new();
+        let mut move_filter = QueryFilter::new().exclude_sensors();
         let predicate = |coll_entity| coll_entity != entity;
         move_filter.predicate = Some(&predicate);
 
