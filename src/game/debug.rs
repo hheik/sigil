@@ -5,7 +5,7 @@ use bevy_ecs_ldtk::LevelSelection;
 use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 use bevy_rapier2d::prelude::*;
 
-use super::entity_instance::player::{KinematicState, Player};
+use super::{entity_instance::player::Player, kinematic_actor::KaState};
 
 pub struct DebugPlugin;
 
@@ -36,7 +36,7 @@ fn init_debug(mut time_debug: ResMut<TimeDebug>) {
 }
 
 fn player_debug(
-    mut query: Query<(&KinematicState, &GlobalTransform), With<Player>>,
+    mut query: Query<(&KaState, &GlobalTransform), With<Player>>,
     mut debug_draw: ResMut<DebugLines>,
     time: Res<Time>,
 ) {

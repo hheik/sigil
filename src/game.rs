@@ -2,6 +2,7 @@ pub mod camera;
 pub mod debug;
 pub mod default_plugin_setup;
 pub mod entity_instance;
+pub mod kinematic_actor;
 pub mod ldtk;
 pub mod tile;
 
@@ -25,6 +26,7 @@ pub fn init() {
         .add_plugin(ldtk::LdtkHelperPlugin)
         .add_plugin(camera::GameCameraPlugin)
         .add_plugin(tile::TilePlugin)
+        .add_plugin(kinematic_actor::KinematicActorPlugin)
         .add_plugin(entity_instance::EntityInstancePlugin)
         .insert_resource(LevelSelection::Identifier("ROOM_0".to_string()))
         .add_startup_system(setup)

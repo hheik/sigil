@@ -1024,6 +1024,20 @@
 								"id": "V_String",
 								"params": ["MAX_HP_TANK"]
 							}] }]
+						},
+						{
+							"__identifier": "PLAYER",
+							"__grid": [3,11],
+							"__pivot": [0,0],
+							"__tags": [],
+							"__tile": { "tilesetUid": 1, "x": 0, "y": 0, "w": 8, "h": 8 },
+							"__smartColor": "#50BE2F",
+							"iid": "da0489d0-9f30-11ed-bf8a-8b82486afec2",
+							"width": 8,
+							"height": 8,
+							"defUid": 6,
+							"px": [24,88],
+							"fieldInstances": []
 						}
 					]
 				},
@@ -2434,22 +2448,7 @@
 					"seed": 3580100,
 					"overrideTilesetUid": null,
 					"gridTiles": [],
-					"entityInstances": [
-						{
-							"__identifier": "PLAYER",
-							"__grid": [48,9],
-							"__pivot": [0,0],
-							"__tags": [],
-							"__tile": { "tilesetUid": 1, "x": 0, "y": 0, "w": 8, "h": 8 },
-							"__smartColor": "#50BE2F",
-							"iid": "da0489d0-9f30-11ed-bf8a-8b82486afec2",
-							"width": 8,
-							"height": 8,
-							"defUid": 6,
-							"px": [384,72],
-							"fieldInstances": []
-						}
-					]
+					"entityInstances": []
 				},
 				{
 					"__identifier": "GRID",

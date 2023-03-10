@@ -1,13 +1,12 @@
 use std::f32::consts::PI;
 
-use bevy::prelude::*;
+use bevy::{input::InputSystem, prelude::*};
 use bevy_ecs_ldtk::prelude::*;
-use bevy_prototype_debug_lines::DebugLines;
 use bevy_rapier2d::prelude::*;
 
 use crate::{
-    game::{camera::CameraFollow, debug::draw_shape, ldtk::EntityInstanceAdded},
-    util::{inverse_lerp, lerp, move_towards_vec2},
+    game::{camera::CameraFollow, kinematic_actor::*, ldtk::EntityInstanceAdded},
+    util::*,
 };
 
 pub struct PlayerPlugin;
@@ -15,12 +14,24 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Player>()
-            .register_type::<KinematicState>()
-            .register_type::<PlayerProperties>()
             .add_system(player_spawner)
             .add_system(update_level_selection)
+            .add_system_to_stage(CoreStage::PreUpdate, player_input.after(InputSystem))
             .add_system(player_movement);
     }
+}
+
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
+pub struct Player;
+
+#[derive(Bundle, Default)]
+pub struct PlayerBundle {
+    player: Player,
+    collider: Collider,
+    ccd: Ccd,
+    sleeping: Sleeping,
+    kinematic_actor: KinematicActorBundle,
 }
 
 fn player_spawner(
@@ -47,9 +58,6 @@ fn player_spawner(
                 builder
                     .spawn(PlayerBundle {
                         collider: Collider::cuboid(3.0, 3.0),
-                        rigidbody: RigidBody::KinematicPositionBased,
-                        active_events: ActiveEvents::COLLISION_EVENTS,
-                        active_collisions: ActiveCollisionTypes::all(),
                         ccd: Ccd::enabled(),
                         sleeping: Sleeping::disabled(),
                         ..default()
@@ -100,35 +108,8 @@ pub fn update_level_selection(
     }
 }
 
-pub fn player_movement(
-    mut query: Query<
-        (
-            Entity,
-            &mut KinematicState,
-            &mut Transform,
-            &Collider,
-            &PlayerProperties,
-            &GlobalTransform,
-            Option<&CollisionGroups>,
-        ),
-        With<Player>,
-    >,
-    input: Res<Input<KeyCode>>,
-    time: Res<Time>,
-    mut rapier_context: ResMut<RapierContext>,
-    mut debug_draw: ResMut<DebugLines>,
-) {
-    let dt = time.delta_seconds();
-    for (
-        entity,
-        mut kinematic_state,
-        mut transform,
-        shape,
-        props,
-        global_transform,
-        collision_groups,
-    ) in query.iter_mut()
-    {
+fn player_input(input: Res<Input<KeyCode>>, mut query: Query<&mut KaInput, With<Player>>) {
+    for mut ka_input in query.iter_mut() {
         let mut movement_input = Vec2::ZERO;
         if input.pressed(KeyCode::Right) {
             movement_input += Vec2::X
@@ -136,21 +117,54 @@ pub fn player_movement(
         if input.pressed(KeyCode::Left) {
             movement_input += Vec2::NEG_X
         }
+        ka_input.movement = movement_input;
+        ka_input.jump.set(input.pressed(KeyCode::C))
+    }
+}
 
-        let movement = MovementProperties::from_props_and_state(props, &kinematic_state);
+pub fn player_movement(
+    mut query: Query<
+        (
+            Entity,
+            &mut KaState,
+            &mut Transform,
+            &Collider,
+            &KaProperties,
+            &KaInput,
+            &GlobalTransform,
+            Option<&CollisionGroups>,
+        ),
+        With<Player>,
+    >,
+    time: Res<Time>,
+    mut rapier_context: ResMut<RapierContext>,
+) {
+    let dt = time.delta_seconds();
+    for (
+        entity,
+        mut state,
+        mut transform,
+        shape,
+        props,
+        input,
+        global_transform,
+        collision_groups,
+    ) in query.iter_mut()
+    {
+        let movement = MovementProperties::from_props_and_state(props, &state);
 
         const GRAVITY_DIR: Vec2 = Vec2::NEG_Y;
         const GRAVITY_COEFFICIENT: f32 = 200.0;
         const UNITS_PER_TILE: f32 = 8.0;
-        let target_velocity = movement_input * movement.speed;
+        let target_velocity = input.movement * movement.speed;
 
-        let angle_lerp = if kinematic_state.velocity.length_squared() > 0.01 {
+        let angle_lerp = if state.velocity.length_squared() > 0.01 {
             let result = inverse_lerp(
                 0.0,
                 PI,
-                kinematic_state
+                state
                     .velocity
-                    .angle_between(target_velocity - kinematic_state.velocity)
+                    .angle_between(target_velocity - state.velocity)
                     .abs(),
             );
             if result.is_nan() {
@@ -169,18 +183,16 @@ pub fn player_movement(
         ) * movement.speed;
 
         // Apply acceleration towards wanted direction
-        let current = kinematic_state.velocity;
+        let current = state.velocity;
         let wanted = target_velocity.reject_from_normalized(GRAVITY_DIR);
-        let grav = kinematic_state
-            .velocity
-            .project_onto_normalized(GRAVITY_DIR);
+        let grav = state.velocity.project_onto_normalized(GRAVITY_DIR);
         let mut velocity = move_towards_vec2(current, wanted + grav, velocity_change_speed * dt);
         // apply gravity
-        if !kinematic_state.on_ground {
+        if !state.on_ground {
             velocity += GRAVITY_DIR * GRAVITY_COEFFICIENT * dt;
         }
 
-        if input.just_pressed(KeyCode::C) && kinematic_state.can_jump() {
+        if input.jump.just_pressed() && state.can_jump() {
             // Calculate required jump velocity to reach given height
             let jump_velocity =
                 (props.jump_height.max(0.0) * UNITS_PER_TILE * GRAVITY_COEFFICIENT.abs() * 2.0)
@@ -189,7 +201,7 @@ pub fn player_movement(
                 y: jump_velocity,
                 ..velocity
             };
-            kinematic_state.is_jumping = true;
+            state.is_jumping = true;
         }
 
         let move_options = &MoveShapeOptions {
@@ -202,7 +214,7 @@ pub fn player_movement(
             slide: false,
             max_slope_climb_angle: (50.0_f32).to_radians(),
             min_slope_slide_angle: (50.0_f32).to_radians(),
-            snap_to_ground: if kinematic_state.is_jumping {
+            snap_to_ground: if state.is_jumping {
                 None
             } else {
                 Some(CharacterLength::Absolute(1.0))
@@ -215,6 +227,7 @@ pub fn player_movement(
         let predicate = |coll_entity| coll_entity != entity;
         move_filter.predicate = Some(&predicate);
 
+        // TODO: handle collision groups
         // if let Some(collision_groups) = collision_groups {
         //     filter.groups(InteractionGroups::new(
         //         bevy_rapier2d::rapier::geometry::Group::from_bits_truncate(
@@ -229,22 +242,6 @@ pub fn player_movement(
         // Physics movement
         let mut remaining_velocity = velocity * dt;
         let (_scale, rotation, mut translation) = global_transform.to_scale_rotation_translation();
-
-        {
-            // DEBUG
-            draw_shape(
-                &mut debug_draw,
-                shape,
-                translation.truncate(),
-                rotation.to_euler(EulerRot::ZYX).0,
-                0.0,
-                Color::WHITE,
-            );
-        }
-
-        if input.just_pressed(KeyCode::P) {
-            println!("User interrupt!")
-        }
 
         const MAX_SLIDE_STEPS: u8 = 8;
         for _i in 0..MAX_SLIDE_STEPS {
@@ -261,7 +258,7 @@ pub fn player_movement(
             );
 
             translation += phys_move.effective_translation.extend(0.0);
-            kinematic_state.on_ground = phys_move.grounded;
+            state.on_ground = phys_move.grounded;
 
             // If on ground there might be some autostep/slope/snap variance so project first.
             // Otherwise, just substract effective translation from remaining velocity.
@@ -290,10 +287,10 @@ pub fn player_movement(
                         translation += coll.toi.normal1.extend(0.0) * 0.01;
                     }
                     TOIStatus::Failed => {
-                        println!("ToI failed")
+                        println!("ToI failed") // DEBUG
                     }
                     TOIStatus::OutOfIterations => {
-                        println!("ToI Out of Iterations")
+                        println!("ToI Out of Iterations") // DEBUG
                     }
                 };
             }
@@ -303,11 +300,11 @@ pub fn player_movement(
         }
 
         let diff = translation - global_transform.to_scale_rotation_translation().2;
-        kinematic_state.last_translation = diff.truncate();
+        state.last_translation = diff.truncate();
         transform.translation += diff;
 
         // Snap to ground manually
-        let ground_snap = if kinematic_state.is_jumping {
+        let ground_snap = if state.is_jumping {
             None
         } else {
             let (_scale, rotation, translation) = global_transform.to_scale_rotation_translation();
@@ -322,7 +319,7 @@ pub fn player_movement(
                 move_filter,
             )
         };
-        kinematic_state.on_ground = match ground_snap {
+        state.on_ground = match ground_snap {
             Some(ground_snap) => {
                 if ground_snap.1.normal1.dot(-GRAVITY_DIR) > 0.0 {
                     transform.translation +=
@@ -342,99 +339,13 @@ pub fn player_movement(
         };
 
         // Reset any possible jump snapping and stuff after the peak of jump
-        if kinematic_state.last_translation.dot(GRAVITY_DIR) >= 0.0 {
-            kinematic_state.is_jumping = false;
+        if state.last_translation.dot(GRAVITY_DIR) >= 0.0 {
+            state.is_jumping = false;
         }
 
-        kinematic_state.velocity = kinematic_state.last_translation / dt;
-        if kinematic_state.on_ground {
-            kinematic_state.velocity.y = 0.0;
-        }
-    }
-}
-
-#[derive(Component, Reflect, Debug, Default, Clone, Copy)]
-#[reflect(Component)]
-pub struct KinematicState {
-    pub last_translation: Vec2,
-    pub velocity: Vec2,
-    pub on_ground: bool,
-    pub is_jumping: bool,
-}
-
-impl KinematicState {
-    pub fn can_jump(&self) -> bool {
-        self.on_ground && !self.is_jumping
-    }
-}
-
-#[derive(Component, Default, Reflect)]
-#[reflect(Component)]
-pub struct Player;
-
-#[derive(Bundle, Default)]
-pub struct PlayerBundle {
-    player: Player,
-    collider: Collider,
-    kinematic_state: KinematicState,
-    props: PlayerProperties,
-    rigidbody: RigidBody,
-    ccd: Ccd,
-    sleeping: Sleeping,
-    active_events: ActiveEvents,
-    active_collisions: ActiveCollisionTypes,
-    spatial: SpatialBundle,
-}
-
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct PlayerProperties {
-    pub speed: f32,
-    pub acceleration: f32,
-    pub friction: f32,
-    pub air_speed_mod: f32,
-    pub air_acceleration_mod: f32,
-    pub air_friction_mod: f32,
-    pub jump_height: f32,
-}
-
-pub struct MovementProperties {
-    pub speed: f32,
-    pub acceleration: f32,
-    pub friction: f32,
-}
-
-impl MovementProperties {
-    pub fn from_props_and_state(
-        props: &PlayerProperties,
-        kinematic_state: &KinematicState,
-    ) -> Self {
-        if kinematic_state.on_ground {
-            Self {
-                speed: props.speed,
-                acceleration: props.acceleration,
-                friction: props.friction,
-            }
-        } else {
-            Self {
-                speed: props.speed * props.air_speed_mod,
-                acceleration: props.acceleration * props.air_acceleration_mod,
-                friction: props.friction * props.air_friction_mod,
-            }
-        }
-    }
-}
-
-impl Default for PlayerProperties {
-    fn default() -> Self {
-        Self {
-            speed: 50.0,
-            acceleration: 30.0,
-            friction: 30.0,
-            air_speed_mod: 1.0,
-            air_acceleration_mod: 1.0,
-            air_friction_mod: 1.0,
-            jump_height: 2.1,
+        state.velocity = state.last_translation / dt;
+        if state.on_ground {
+            state.velocity.y = 0.0;
         }
     }
 }
