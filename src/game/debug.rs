@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, time::TimeSystem};
 use bevy_ecs_ldtk::LevelSelection;
 use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 use bevy_rapier2d::prelude::*;
@@ -23,7 +23,10 @@ impl Plugin for DebugPlugin {
             .add_plugin(bevy_inspector_egui::quick::WorldInspectorPlugin)
             .add_plugin(bevy_rapier2d::prelude::RapierDebugRenderPlugin::default())
             .add_startup_system(init_debug)
-            .add_system_to_stage(CoreStage::First, fixed_timestep.at_end())
+            .add_system_to_stage(
+                CoreStage::First,
+                fixed_timestep.at_start().after(TimeSystem),
+            )
             .add_system(player_debug)
             .add_system(room_debug);
     }
