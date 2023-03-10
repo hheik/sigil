@@ -7,6 +7,12 @@ pub struct KaInputButton {
 }
 
 impl KaInputButton {
+    /// Clears the button state, setting current and previous to deactivated.
+    pub fn clear(&mut self) {
+        self.current = false;
+        self.previous = false;
+    }
+
     /// Set the current state of input. Also updates just_pressed and
     /// just_released values, thus should only be called once per frame.
     /// Maybe updating the previous value should be done in a system so it won't break when called twice?

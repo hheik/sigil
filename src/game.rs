@@ -14,7 +14,7 @@ pub fn init() {
     App::new()
         .add_plugin(default_plugin_setup::DefaultPluginSetup)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugin(debug::DebugPlugin)
+        // .add_plugin(debug::DebugPlugin)
         .add_plugin(LdtkPlugin)
         .insert_resource(LdtkSettings {
             level_spawn_behavior: LevelSpawnBehavior::UseWorldTranslation {

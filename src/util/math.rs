@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_rapier2d::na::ComplexField;
 
 pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a * (1.0 - t) + b * t
@@ -39,4 +40,8 @@ pub fn move_towards_vec3(from: Vec3, to: Vec3, amount: f32) -> Vec3 {
         return from;
     }
     from + diff.normalize() * length.min(amount)
+}
+
+pub fn velocity_required_for_jump(height: f32, gravity: f32) -> Option<f32> {
+    (height * gravity * 2.0).try_sqrt()
 }
